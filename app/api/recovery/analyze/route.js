@@ -12,7 +12,7 @@ export async function POST(request) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return NextResponse.json({ message: "AI analysis is temporarily unavailable. Configure GEMINI_API_KEY on the server." }, { status: 503 });
     const prompt = `${SYSTEM_INSTRUCTIONS}\n\nMerchant situation:\n${situation}\n\nUse these exact enum values where applicable: customer_intent = wants_to_pay, uncertain, wants_to_pay_later, does_not_want_to_pay, needs_help. recommended_action = CREATE_PAYMENT_LINK, SEND_PAYMENT_MESSAGE, SEND_REMINDER, FOLLOW_UP_LATER, HUMAN_REVIEW, STOP. channel = WHATSAPP, SMS, EMAIL, NONE. confidence and recovery_probability must be numbers from 0 to 1.\nReturn JSON only.`;
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.2, responseMimeType: "application/json" } }), signal: AbortSignal.timeout(60000) });
+    const response = await callGemini(model, apiKey, prompt);
     if (!response.ok) {
       console.error("Gemini analysis failed", response.status, await response.text());
       if (response.status === 429 || response.status === 503) {
@@ -32,6 +32,40 @@ export async function POST(request) {
   }
 }
 
+async function callGemini(model, apiKey, prompt) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const body = JSON.stringify({
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
+  });
+  let lastError;
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+        signal: AbortSignal.timeout(45000),
+      });
+
+      if (response.ok) return response;
+
+      const providerMessage = await response.text();
+      console.error(`Gemini analysis failed on attempt ${attempt}`, response.status, providerMessage);
+      if (response.status !== 429 && response.status !== 503) return new Response(providerMessage, { status: response.status });
+      lastError = new Error(`Gemini returned ${response.status}`);
+    } catch (error) {
+      lastError = error;
+      console.error(`Gemini request failed on attempt ${attempt}`, error);
+    }
+
+    if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 1200));
+  }
+
+  throw lastError || new Error("Gemini request failed.");
+}
+
 function normalizeDecision(value) {
   const allowedIntents = ["wants_to_pay", "uncertain", "wants_to_pay_later", "does_not_want_to_pay", "needs_help"];
   const allowedActions = ["CREATE_PAYMENT_LINK", "SEND_PAYMENT_MESSAGE", "SEND_REMINDER", "FOLLOW_UP_LATER", "HUMAN_REVIEW", "STOP"];
@@ -40,5 +74,10 @@ function normalizeDecision(value) {
 function clamp(value) { const number = Number(value); return Number.isFinite(number) ? Math.max(0, Math.min(1, number)) : 0; }
 function evaluatePolicy(decision) { if (decision.customer_intent === "does_not_want_to_pay" || decision.recommended_action === "STOP") return { status: "STOPPED", reason: "Customer does not want further recovery outreach." }; if (decision.confidence < 0.7 || decision.recovery_probability < 0.4 || decision.recommended_action === "HUMAN_REVIEW") return { status: "HUMAN_REVIEW", reason: "The decision needs merchant review before recovery." }; return { status: "APPROVED", reason: "The proposed recovery action is within the simple recovery policy." }; }
 function policyStatus(decision) { return evaluatePolicy(decision).status === "APPROVED" ? "ACTION_READY" : evaluatePolicy(decision).status; }
-function extractAmount(value) { const match = value.match(/(?:₹|rs\.?\s*|inr\s*)([\d,]+)/i); return match ? Number(match[1].replaceAll(",", "")) : null; }
+function extractAmount(value) {
+  const labeledAmount = value.match(/(?:₹|rs\.?\s*|inr\s*)([\d,]+)/i);
+  const plainAmount = value.match(/(?:payment|invoice|amount)\s*(?:of|for)?\s*([\d,]+)/i);
+  const match = labeledAmount || plainAmount;
+  return match ? Number(match[1].replaceAll(",", "")) : null;
+}
 function extractCustomerName(value) { const match = value.match(/for\s+([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+){0,2})/); return match?.[1] || "Customer"; }
