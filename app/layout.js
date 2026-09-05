@@ -1,8 +1,8 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "RecoverAI — B2B Receivables Recovery Agent",
-  description: "Demo: an AI-assisted agent for chasing overdue B2B receivables with deterministic compliance rules.",
+  title: "RevivePay — AI Revenue Recovery Agent",
+  description: "Recover failed payments with AI-powered diagnosis, personalized outreach and Payment Links.",
 };
 
 export default function RootLayout({ children }) {
