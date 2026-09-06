@@ -4,7 +4,13 @@ import { getCase, updateCase } from "../../../../../lib/recovery-store";
 export async function POST(request, { params }) {
   const recoveryCase = getCase(params.caseId);
   if (!recoveryCase) return NextResponse.json({ message: "Recovery case was not found." }, { status: 404 });
-  if (recoveryCase.paymentLink) return NextResponse.json({ case: recoveryCase });
+  if (recoveryCase.paymentLink) {
+    if (recoveryCase.paymentLink.mode === "DEMO") {
+      const paymentLink = { ...recoveryCase.paymentLink, url: new URL(`/pay/${recoveryCase.id}`, request.url).toString() };
+      return NextResponse.json({ case: updateCase(recoveryCase.id, { paymentLink }) });
+    }
+    return NextResponse.json({ case: recoveryCase });
+  }
   if (recoveryCase.policy.status !== "APPROVED") return NextResponse.json({ message: "This recovery action is not approved by policy." }, { status: 403 });
   try {
     let paymentLink;
@@ -15,7 +21,7 @@ export async function POST(request, { params }) {
       const data = await response.json();
       paymentLink = { id: data.id, url: data.short_url, mode: "RAZORPAY_TEST" };
     } else {
-      paymentLink = { id: `demo_link_${recoveryCase.id}`, url: `http://demo.revivepay.local/pay/${recoveryCase.id}`, mode: "DEMO" };
+      paymentLink = { id: `demo_link_${recoveryCase.id}`, url: new URL(`/pay/${recoveryCase.id}`, request.url).toString(), mode: "DEMO" };
     }
     const updated = updateCase(recoveryCase.id, { paymentLink, status: "WAITING_FOR_PAYMENT" });
     return NextResponse.json({ case: updated });

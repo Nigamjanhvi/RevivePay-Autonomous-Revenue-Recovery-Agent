@@ -2062,6 +2062,15 @@ footer.note {
 .message-card button { align-self: start; border: 0; background: transparent; color: #3270d2; font: inherit; font-size: .75rem; cursor: pointer; }
 .result-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 18px; }
 .demo-note, .saved-note { display: block; margin-top: 14px; color: #70829b; font-size: .72rem; }
+
+.demo-payment-page { min-height: 100vh; display: grid; place-items: center; padding: 32px 20px; background: radial-gradient(circle at top, #edf4ff, var(--paper) 48%); }
+.demo-payment-card { width: min(100%, 520px); padding: 36px; border: 1px solid #dfe6ef; border-radius: 16px; background: var(--surface); box-shadow: 0 20px 50px rgba(20,38,74,.1); }
+.demo-payment-card h1 { margin: 8px 0; color: var(--navy-deep); }
+.demo-payment-card p { color: var(--ink-soft); line-height: 1.6; }
+.demo-payment-customer { margin-bottom: 28px; }
+.demo-payment-amount { margin: 20px 0; color: var(--navy-deep); font-size: 38px; font-weight: 700; }
+.demo-payment-copy { margin-bottom: 24px; }
+.demo-payment-success { display: inline-block; margin-top: 18px; padding: 8px 12px; border-radius: 6px; background: var(--good-soft); color: var(--good); font-size: 12px; font-weight: 700; }
 .product-page-header { margin-bottom: 26px; }
 .product-page-header h1 { margin: 0; color: var(--navy-deep); font-size: 2.4rem; letter-spacing: -.06em; }
 .empty-product-state { display: grid; gap: 8px; color: #7b899c; }
